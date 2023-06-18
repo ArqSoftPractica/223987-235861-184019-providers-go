@@ -3,6 +3,9 @@ module 223987-235861-184019-providers
 go 1.13
 
 require (
+	github.com/aws/aws-sdk-go v1.44.284 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.18.27 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sns v1.20.13 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/gin-gonic/gin v1.6.2
 	github.com/go-playground/validator/v10 v10.2.0 // indirect
