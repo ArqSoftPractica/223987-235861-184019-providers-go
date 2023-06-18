@@ -26,11 +26,10 @@ func NewRelicErrorLogger(app *newrelic.Application) gin.HandlerFunc {
 		defer txn.End()
 
 		c.Next()
-
-		if len(c.Errors) > 0 {
-			for _, err := range c.Errors {
-				txn.NoticeError(err.Err)
-			}
+		status := c.Writer.Status()
+		if status >= 400 {
+			defer txn.End()
+			txn.NoticeError(fmt.Errorf("HTTP %d: %s", status, http.StatusText(status)))
 		}
 	}
 }
