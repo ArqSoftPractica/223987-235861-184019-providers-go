@@ -46,5 +46,11 @@ func main() {
 
 	router := Routes.SetupRouter()
 	port := os.Getenv("PORT")
+
+	// app, err := newrelic.NewApplication(
+	// 	newrelic.ConfigAppName("asp-providers"),
+	// 	newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+	// )
+
 	log.Fatal(http.ListenAndServe(":"+port, router))
 }
