@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -52,8 +53,11 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-
-	router := Routes.SetupRouter()
+	r := gin.Default()
+	Routes.SetupProvidersRoutes(r)
+	Routes.SetupHealthRoutes(r)
+	Routes.SetupAwsUpdateRoutes(r)
+	router := r
 	port := os.Getenv("PORT")
 
 	// app, err := newrelic.NewApplication(
