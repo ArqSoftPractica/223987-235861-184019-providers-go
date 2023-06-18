@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	companyQueueServiceActive = struct{ isActive bool }{false}
+	CompanyQueueServiceActive = struct{ IsActive bool }{false}
 )
 
 type MessageData struct {
@@ -21,12 +21,6 @@ type MessageData struct {
 }
 
 func ReceiveCompanyMessages() {
-	sess, err := GetSession()
-	if err != nil {
-		log.Printf("Error creating AWS session: %s", err.Error())
-		return
-	}
-
 	queueURL := os.Getenv("SQS_COMPANY_QUEUE_URL")
 	params := &sqs.ReceiveMessageInput{
 		AttributeNames:        aws.StringSlice([]string{"SentTimestamp"}),
@@ -36,19 +30,26 @@ func ReceiveCompanyMessages() {
 		VisibilityTimeout:     aws.Int64(30),
 		WaitTimeSeconds:       aws.Int64(0),
 	}
-
-	svc := sqs.New(sess)
-
 	for {
-		resp, err := svc.ReceiveMessage(params)
+		sess, err := GetSession()
 		if err != nil {
-			log.Printf("Error receiving messages: %s", err.Error())
-			companyQueueServiceActive.isActive = false
+			log.Printf("Error creating AWS session: %s", err.Error())
+			CompanyQueueServiceActive.IsActive = false
 			time.Sleep(5 * time.Minute)
 			continue
 		}
 
-		companyQueueServiceActive.isActive = true
+		svc := sqs.New(sess)
+
+		resp, err := svc.ReceiveMessage(params)
+		if err != nil {
+			log.Printf("Error receiving messages: %s", err.Error())
+			CompanyQueueServiceActive.IsActive = false
+			time.Sleep(5 * time.Minute)
+			continue
+		}
+
+		CompanyQueueServiceActive.IsActive = true
 		for _, msg := range resp.Messages {
 			go func(msg *sqs.Message) {
 				defer func() {
@@ -58,7 +59,7 @@ func ReceiveCompanyMessages() {
 					})
 					if err != nil {
 						log.Printf("Error deleting message: %s", err.Error())
-						companyQueueServiceActive.isActive = false
+						CompanyQueueServiceActive.IsActive = false
 						time.Sleep(5 * time.Minute)
 					}
 				}()
@@ -68,7 +69,7 @@ func ReceiveCompanyMessages() {
 				var messageData MessageData
 				if err := json.Unmarshal([]byte(*msg.Body), &messageData); err != nil {
 					log.Printf("Error unmarshaling message data: %s", err.Error())
-					companyQueueServiceActive.isActive = false
+					CompanyQueueServiceActive.IsActive = false
 					time.Sleep(5 * time.Minute)
 					return
 				}
@@ -76,14 +77,14 @@ func ReceiveCompanyMessages() {
 				var companyToCreate Models.Company
 				if err := json.Unmarshal([]byte(messageData.Message), &companyToCreate); err != nil {
 					log.Printf("Error unmarshaling company message: %s", err.Error())
-					companyQueueServiceActive.isActive = false
+					CompanyQueueServiceActive.IsActive = false
 					time.Sleep(5 * time.Minute)
 					return
 				}
 
 				if err := upsertCompany(&companyToCreate); err != nil {
 					log.Printf("Error upserting company: %s", err.Error())
-					companyQueueServiceActive.isActive = false
+					CompanyQueueServiceActive.IsActive = false
 					time.Sleep(5 * time.Minute)
 					return
 				}
