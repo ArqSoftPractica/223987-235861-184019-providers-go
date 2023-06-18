@@ -31,7 +31,7 @@ func UpdateSession(accessKeyId string, secretKey string, awsToken string) (error
 	var err error
 	sharedSession, err = session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			Region:      aws.String("us-west-2"),
+			Region:      aws.String("us-east-1"),
 			Credentials: credentials.NewStaticCredentials(accessKeyId, secretKey, awsToken),
 		},
 	})

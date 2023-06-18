@@ -12,11 +12,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/newrelic/go-agent/v3/integrations/nrgin"
+	newrelic "github.com/newrelic/go-agent/v3/newrelic"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
 var err error
+
+func NewRelicErrorLogger(app *newrelic.Application) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		txn := app.StartTransaction(c.Request.URL.Path)
+		defer txn.End()
+
+		c.Next()
+
+		if len(c.Errors) > 0 {
+			for _, err := range c.Errors {
+				txn.NoticeError(err.Err)
+			}
+		}
+	}
+}
 
 func main() {
 	var fileToLoad string
@@ -53,17 +70,24 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+
+	app, err := newrelic.NewApplication(
+		newrelic.ConfigAppName("asp-providers"),
+		newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+	)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	r := gin.Default()
+	r.Use(nrgin.Middleware(app))
+	r.Use(NewRelicErrorLogger(app))
 	Routes.SetupProvidersRoutes(r)
 	Routes.SetupHealthRoutes(r)
 	Routes.SetupAwsUpdateRoutes(r)
 	router := r
 	port := os.Getenv("PORT")
-
-	// app, err := newrelic.NewApplication(
-	// 	newrelic.ConfigAppName("asp-providers"),
-	// 	newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
-	// )
 
 	go func() {
 		Service.ReceiveCompanyMessages()
