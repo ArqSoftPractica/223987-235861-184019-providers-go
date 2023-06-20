@@ -1,16 +1,16 @@
-FROM golang:1.14-alpine as build-env 
+FROM golang:1.17 as build-env 
 
-RUN apk add --no-cache git
+# Set the working directory to /app
+WORKDIR /app
 
-WORKDIR /src
-
-COPY . .
+COPY . /app
 
 RUN go mod download 
 
-RUN CGO_ENABLED=0 go build -o ./out/main /src/cmd/main.go
+ENV NODE_ENV=development
 
-FROM scratch 
-COPY --from=build-env /src/out/main /main
-EXPOSE 3000
+RUN go build -o main .
+
+EXPOSE 3002
+
 CMD  ["./main"]
