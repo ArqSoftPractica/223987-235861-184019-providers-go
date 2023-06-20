@@ -4,16 +4,35 @@ import (
 	"223987-235861-184019-providers/Config"
 	"223987-235861-184019-providers/Models"
 	"223987-235861-184019-providers/Routes"
+	"223987-235861-184019-providers/Service"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 
-	"github.com/jinzhu/gorm"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/newrelic/go-agent/v3/integrations/nrgin"
+	newrelic "github.com/newrelic/go-agent/v3/newrelic"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 var err error
+
+func NewRelicErrorLogger(app *newrelic.Application) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		txn := app.StartTransaction(c.Request.URL.Path)
+		defer txn.End()
+
+		c.Next()
+		status := c.Writer.Status()
+		if status >= 400 {
+			defer txn.End()
+			txn.NoticeError(fmt.Errorf("HTTP %d: %s", status, http.StatusText(status)))
+		}
+	}
+}
 
 func main() {
 	var fileToLoad string
@@ -26,7 +45,7 @@ func main() {
 
 	dbConfig := Config.BuildDBConfig()
 	dbUrl := Config.DbURL(dbConfig)
-	Config.DB, err = gorm.Open("mysql", dbUrl)
+	Config.DB, err = gorm.Open(mysql.Open(dbUrl), &gorm.Config{})
 
 	if err != nil {
 		log.Fatal("Error loading .env file:", err)
@@ -36,15 +55,42 @@ func main() {
 		fmt.Println("Status:", err)
 	}
 
-	defer Config.DB.Close()
 	Config.DB.AutoMigrate(&Models.Provider{}, &Models.Company{})
 
-	err = Config.DB.Model(&Models.Provider{}).AddForeignKey("company_id", "companies(id)", "CASCADE", "CASCADE").Error
+	err = Config.DB.Exec(`
+		ALTER TABLE providers
+		ADD CONSTRAINT fk_providers_companies
+		FOREIGN KEY (company_id)
+		REFERENCES companies(id)
+		ON DELETE CASCADE
+		ON UPDATE CASCADE;
+	`).Error
+
 	if err != nil {
-		panic(err)
+		fmt.Println(err.Error())
 	}
 
-	router := Routes.SetupRouter()
+	app, err := newrelic.NewApplication(
+		newrelic.ConfigAppName("asp-providers"),
+		newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+	)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	r := gin.Default()
+	r.Use(nrgin.Middleware(app))
+	r.Use(NewRelicErrorLogger(app))
+	Routes.SetupProvidersRoutes(r)
+	Routes.SetupHealthRoutes(r)
+	Routes.SetupAwsUpdateRoutes(r)
+	router := r
 	port := os.Getenv("PORT")
+
+	go func() {
+		Service.ReceiveCompanyMessages()
+	}()
+
 	log.Fatal(http.ListenAndServe(":"+port, router))
 }

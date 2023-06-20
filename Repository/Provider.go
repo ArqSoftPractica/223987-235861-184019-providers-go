@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func GetAllProviders(providers *[]Models.Provider) (err error) {
-	if err = Config.DB.Find(providers).Error; err != nil {
+func GetAllProviders(providers *[]Models.Provider, companyId string) (err error) {
+	if err = Config.DB.Find(providers).Where("id = ?", companyId).Error; err != nil {
 		return err
 	}
 	return nil
@@ -55,20 +55,30 @@ func CreateProvider(provider *Models.Provider) (err error) {
 	}
 }
 
-func GetProviderByID(provider *Models.Provider, id string) (err error) {
-	if err = Config.DB.Where("id = ?", id).First(provider).Error; err != nil {
+func GetProviderByID(provider *Models.Provider, id string, companyId string) (err error) {
+	if err = Config.DB.Where("id = ?", id).First(provider).Where("id = ? AND company_id = ?", id, companyId).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
 func UpdateProvider(provider *Models.Provider, id string) (err error) {
+	var existingProvider Models.Provider
+	if err = Config.DB.Where("id = ? AND company_id = ?", id, provider.CompanyId).First(&existingProvider).Error; err != nil {
+		return err
+	}
+
 	fmt.Println(provider)
 	Config.DB.Save(provider)
 	return nil
 }
 
-func DeleteProvider(provider *Models.Provider, id string) (err error) {
-	Config.DB.Where("id = ?", id).Delete(provider)
+func DeactivateProvider(provider *Models.Provider, id string) (err error) {
+	if err = Config.DB.Where("id = ?", id).First(provider).Where("id = ? AND company_id = ?", id, provider.CompanyId).Error; err != nil {
+		return err
+	}
+	provider.IsActive = false
+	fmt.Println(provider)
+	Config.DB.Save(provider)
 	return nil
 }

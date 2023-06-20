@@ -7,8 +7,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func CreateCompany(company *Models.Provider) (err error) {
-	if err = Config.DB.Create(company).Error; err != nil {
+func UpsertCompany(company *Models.Company) (err error) {
+	if err = Config.DB.FirstOrCreate(company, Models.Company{ID: company.ID}).Error; err != nil {
 		return err
 	}
 	return nil
