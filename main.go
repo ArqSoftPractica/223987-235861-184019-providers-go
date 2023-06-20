@@ -34,6 +34,22 @@ func NewRelicErrorLogger(app *newrelic.Application) gin.HandlerFunc {
 	}
 }
 
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,PATCH,OPTIONS")
+		c.Writer.Header().Set("Content-Type", "application/json")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func main() {
 	var fileToLoad string
 	if os.Getenv("NODE_ENV") == "development" {
@@ -80,6 +96,7 @@ func main() {
 	}
 
 	r := gin.Default()
+	r.Use(CORSMiddleware())
 	r.Use(nrgin.Middleware(app))
 	r.Use(NewRelicErrorLogger(app))
 	Routes.SetupProvidersRoutes(r)
